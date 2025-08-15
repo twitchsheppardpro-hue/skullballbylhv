@@ -312,7 +312,38 @@
         <label class="btn ghost"><input type="checkbox" id="homeAway"> Aller/Retour</label>
       </div>
     </div>
-  </section>
+  
+    <div class="panel">
+      <h3 class="section-title">Synchronisation (Cloud)</h3>
+      <div class="grid cols-2">
+        <div>
+          <label>Activer la synchro</label>
+          <select class="input" id="cloudEnabled">
+            <option value="0">Non</option>
+            <option value="1">Oui</option>
+          </select>
+        </div>
+        <div>
+          <label>ID Tournoi</label>
+          <input class="input" id="cloudTournamentId" placeholder="ex. demo-league">
+        </div>
+        <div>
+          <label>Firebase Realtime DB URL</label>
+          <input class="input" id="cloudDbUrl" placeholder="https://xxx-default-rtdb.europe-west1.firebasedatabase.app">
+          <div class="note">Crée un projet Firebase → Realtime Database (mode test) → copie l'URL.</div>
+        </div>
+        <div>
+          <label>PIN admin (optionnel)</label>
+          <input class="input" id="cloudAdminPin" placeholder="à partager aux arbitres">
+          <div class="note">Sur un lien public, ajoute &amp;pin=XXXX pour autoriser l'édition.</div>
+        </div>
+      </div>
+      <div style="margin-top:10px;display:flex;gap:8px;align-items:center">
+        <button class="btn" id="cloudConnect" type="button">Appliquer &amp; connecter</button>
+        <span class="sub" id="cloudStatus">Hors ligne</span>
+      </div>
+    </div>
+</section>
 </main>
 
 <div id="toast" class="toast">Lien public copié ✅</div>
@@ -331,7 +362,8 @@
       theme:{preset:'europa',accent:'#ff5f00',bg1:'#0b0c10',bg2:'#151824'},
       logoFormat:'png'
     },
-    ui:{finishedDay:'0'}
+    ui:{finishedDay:'0'},
+    cloud:{enabled:false,dbUrl:'',tournamentId:'',adminPin:''}
   };
 
   function uid(){return Math.random().toString(36).slice(2,9)};
@@ -1126,6 +1158,12 @@ function makeLiveCard(m, context='live'){ // context: 'live' or 'finished'
     const ha=document.getElementById('homeAway').checked; generateRoundRobin(ha)
   });
 
+  function isEditAllowed(){
+    const urlPin=new URLSearchParams(location.search).get('pin')||'';
+    const needPin=(state.cloud?.adminPin||'').trim().length>0;
+    if(state.league.publicMode && needPin) return urlPin===state.cloud.adminPin;
+    return !state.league.publicMode || (needPin && urlPin===state.cloud.adminPin);
+  }
   function applyPublicMode(){
     const isPublic=!!state.league.publicMode;
     document.querySelector('[data-tab="admin"]').classList.toggle('hide',isPublic);

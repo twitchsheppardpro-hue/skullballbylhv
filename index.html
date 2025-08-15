@@ -1019,6 +1019,7 @@ function makeLiveCard(m, context='live'){ // context: 'live' or 'finished'
     };
     save();
     bootstrap();
+applyPublicMode();
     toast('Données réinitialisées.');
   });
 
@@ -1159,11 +1160,12 @@ function makeLiveCard(m, context='live'){ // context: 'live' or 'finished'
   });
 
   function isEditAllowed(){
-    const urlPin=new URLSearchParams(location.search).get('pin')||'';
-    const needPin=(state.cloud?.adminPin||'').trim().length>0;
-    if(state.league.publicMode && needPin) return urlPin===state.cloud.adminPin;
-    return !state.league.publicMode || (needPin && urlPin===state.cloud.adminPin);
-  }
+  const pinCfg=(state.cloud?.adminPin||'').trim();
+  const urlPin=new URLSearchParams(location.search).get('pin')||'';
+  if(pinCfg){ return urlPin===pinCfg; }
+  // If no PIN configured, allow edit only when not in public mode
+  return !state.league.publicMode;
+}
   function applyPublicMode(){
     const isPublic=!!state.league.publicMode;
     document.querySelector('[data-tab="admin"]').classList.toggle('hide',isPublic);

@@ -1190,6 +1190,37 @@ function makeLiveCard(m, context='live'){ // context: 'live' or 'finished'
     applyPublicMode();
   }
   bootstrap();
+
+// --- Hard lock KO/RR buttons for public (no PIN) ---
+(function(){
+  function enforceButtons(){
+    const allowed = (typeof isEditAllowed==='function') ? isEditAllowed() : !state.league?.publicMode;
+    const koBtn = document.getElementById('genKO');
+    const rrBtn = document.getElementById('genRR');
+    [koBtn, rrBtn].forEach(btn=>{
+      if(!btn) return;
+      if(!allowed){
+        btn.disabled = true;
+        btn.style.pointerEvents = 'none';
+        btn.style.opacity = '0.5';
+        btn.title = 'Désactivé en mode public';
+      }else{
+        btn.disabled = false;
+        btn.style.pointerEvents = '';
+        btn.style.opacity = '';
+        btn.title = '';
+      }
+    });
+  }
+  // run at load and after bootstrap (UI re-render)
+  try{ enforceButtons(); }catch(e){}
+  const _bootstrap = bootstrap;
+  bootstrap = function(){
+    _bootstrap();
+    enforceButtons();
+  }
+})();
+
 </script>
 </body>
 </html>

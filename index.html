@@ -1354,6 +1354,18 @@ applyPublicMode();
         });
       }
     })();
+
+    // Auto-connect si UI affiche 'Oui' + ID présent (sans besoin de cliquer)
+    (function autoConnectIfNeeded(){
+      const enSel=document.getElementById('cloudEnabled');
+      const idIn=document.getElementById('cloudTournamentId');
+      if(enSel && idIn && enSel.value==='1' && (idIn.value||'').trim().length>0){
+        state.cloud.enabled = true;
+        state.cloud.tournamentId = idIn.value.trim();
+        saveLocalOnly();
+        cloudPull().then(()=>{ enableCloudLive(true); setCloudStatus && setCloudStatus('Connecté ✓'); });
+      }
+    })();
   </script>
 
 </body>

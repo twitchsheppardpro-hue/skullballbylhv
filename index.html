@@ -328,8 +328,8 @@
           <input class="input" id="cloudTournamentId" placeholder="ex. demo-league">
         </div>
         <div>
-          <label>Firebase Realtime DB URL</label>
-          <input class="input" id="cloudDbUrl" placeholder="https://xxx-default-rtdb.europe-west1.firebasedatabase.app">
+          <label>Config Firebase intégrée (aucune saisie)</label>
+          <input class="input" id="cloudDbUrl" disabled value="(intégré)" placeholder="https://xxx-default-rtdb.europe-west1.firebasedatabase.app">
           <div class="note">Crée un projet Firebase → Realtime Database (mode test) → copie l'URL.</div>
         </div>
         <div>
@@ -363,7 +363,7 @@
       logoFormat:'png'
     },
     ui:{finishedDay:'0'},
-    cloud:{enabled:false,dbUrl:'',tournamentId:'',adminPin:''}
+    cloud:{enabled:false,dbUrl:'',tournamentId:'',adminPin:'5274895'}
   };
 
   function uid(){return Math.random().toString(36).slice(2,9)};
@@ -1224,5 +1224,137 @@ applyPublicMode();
 })();
 
 </script>
+
+  <!-- Firebase Firestore sync -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+    import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
+
+    // === Config fournie par Flo ===
+    const firebaseConfig = {
+      apiKey: "AIzaSyBnJEslVnepXcQYiWuCoj-TI8sfDIvVQE",
+      authDomain: "skullball-lhv.firebaseapp.com",
+      projectId: "skullball-lhv",
+      storageBucket: "skullball-lhv.firebasestorage.app",
+      messagingSenderId: "858827576613",
+      appId: "1:858827576613:web:dd19966b74f195a604f6cc"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db  = getFirestore(app);
+
+    let unsubscribeCloud = null;
+    let cloudLastUpdatedAt = 0;
+
+    function cloudDocRef(){
+      const id = (state.cloud?.tournamentId||'').trim();
+      if(!id) return null;
+      return doc(db, 'tournaments', id);
+    }
+
+    async function cloudPull(){
+      try{
+        const ref = cloudDocRef(); if(!ref) return;
+        const snap = await getDoc(ref);
+        if(!snap.exists()) return;
+        const data = snap.data();
+        if(!data || !data.state) return;
+        if(data.updatedAt && data.updatedAt <= cloudLastUpdatedAt) return;
+        state = data.state;
+        cloudLastUpdatedAt = data.updatedAt||Date.now();
+        saveLocalOnly();
+        bootstrap();
+        setCloudStatus && setCloudStatus('Synchro OK (pull)');
+      }catch(e){
+        setCloudStatus && setCloudStatus('Erreur pull');
+      }
+    }
+
+    async function cloudPush(){
+      try{
+        const ref = cloudDocRef(); if(!ref) return;
+        const payload = { state, updatedAt: Date.now() };
+        await setDoc(ref, payload, { merge: true });
+        cloudLastUpdatedAt = payload.updatedAt;
+        setCloudStatus && setCloudStatus('Synchro OK (push)');
+      }catch(e){
+        setCloudStatus && setCloudStatus('Erreur push');
+      }
+    }
+
+    function enableCloudLive(on){
+      if(on){
+        const ref = cloudDocRef(); if(!ref) return;
+        if(unsubscribeCloud) unsubscribeCloud();
+        unsubscribeCloud = onSnapshot(ref, (snap)=>{
+          if(!snap.exists()) return;
+          const data = snap.data();
+          if(!data || !data.state) return;
+          if(data.updatedAt && data.updatedAt <= cloudLastUpdatedAt) return;
+          state = data.state;
+          cloudLastUpdatedAt = data.updatedAt||Date.now();
+          saveLocalOnly();
+          bootstrap();
+          setCloudStatus && setCloudStatus('Live (cloud)');
+        });
+      }else{
+        if(unsubscribeCloud) unsubscribeCloud();
+        unsubscribeCloud = null;
+      }
+    }
+
+    // Monkey-patch existing save() to push when autorisé
+    const _saveOriginal = window.save;
+    function saveLocalOnly(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); updateStorageNote && updateStorageNote(); }
+    window.save = function(){
+      saveLocalOnly();
+      if(state.cloud?.enabled && window.isEditAllowed && window.isEditAllowed()){
+        cloudPush();
+      }
+    };
+
+    // Connect button wiring (re-uses existing Admin UI)
+    document.getElementById('cloudConnect')?.addEventListener('click', async ()=>{
+      state.cloud.enabled = document.getElementById('cloudEnabled').value==='1';
+      state.cloud.tournamentId = document.getElementById('cloudTournamentId').value.trim();
+      // adminPin déjà dans state (par défaut 5274895) et modifiable via le champ s'il existe
+      const pinInput = document.getElementById('cloudAdminPin');
+      if(pinInput) state.cloud.adminPin = (pinInput.value||'').trim() || state.cloud.adminPin;
+      saveLocalOnly();
+      if(state.cloud.enabled){
+        setCloudStatus && setCloudStatus('Connexion...');
+        await cloudPull();      // récupère l'état existant si présent
+        enableCloudLive(true);  // écoute live
+        // Si le doc n'existe pas, on le crée
+        const ref = cloudDocRef();
+        if(ref){
+          const snap = await getDoc(ref);
+          if(!snap.exists()){ await cloudPush(); }
+        }
+        setCloudStatus && setCloudStatus('Connecté ✓');
+      }else{
+        enableCloudLive(false);
+        setCloudStatus && setCloudStatus('Hors ligne');
+      }
+    });
+
+    // Auto-restaure UI au chargement
+    (function initCloudUI(){
+      const cfg = state.cloud||{};
+      const enSel=document.getElementById('cloudEnabled');
+      const idIn=document.getElementById('cloudTournamentId');
+      const pinIn=document.getElementById('cloudAdminPin');
+      if(enSel) enSel.value = cfg.enabled?'1':'0';
+      if(idIn) idIn.value = cfg.tournamentId||'';
+      if(pinIn) pinIn.value = cfg.adminPin||'5274895';
+      if(cfg.enabled){
+        cloudPull().then(()=>{
+          enableCloudLive(true);
+          setCloudStatus && setCloudStatus('Connecté ✓');
+        });
+      }
+    })();
+  </script>
+
 </body>
 </html>
